@@ -3,11 +3,12 @@ import { Send, Phone, Video, MoreVertical, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useMessages } from "@/hooks/useMessages";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { useAuth } from "@/lib/auth";
+import { useProfile } from "@/hooks/useProfile";
 import { Conversation } from "@/hooks/useConversations";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { toast } from "sonner";
 
 interface Props {
   conversation: Conversation | null;
@@ -17,20 +18,30 @@ interface Props {
 
 export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
   const { user } = useAuth();
+  const { profile } = useProfile();
   const { messages, sendMessage } = useMessages(conversation?.id || null);
+  const { typingUsers, sendTyping, stopTyping } = useTypingIndicator(conversation?.id || null);
   const [newMessage, setNewMessage] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, typingUsers]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
     const msg = newMessage;
     setNewMessage("");
+    stopTyping();
     await sendMessage(msg);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value);
+    if (e.target.value.trim() && profile) {
+      sendTyping(profile.display_name);
+    }
   };
 
   const other = conversation?.participants.find(p => p.user_id !== user?.id);
@@ -59,9 +70,17 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
           </Button>
         )}
         <div className="relative">
-          <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground font-semibold text-sm">
-            {other?.display_name.charAt(0).toUpperCase() || "?"}
-          </div>
+          {other?.avatar_url ? (
+            <img
+              src={other.avatar_url}
+              alt={other.display_name}
+              className="h-10 w-10 rounded-full object-cover"
+            />
+          ) : (
+            <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground font-semibold text-sm">
+              {other?.display_name.charAt(0).toUpperCase() || "?"}
+            </div>
+          )}
           {other?.is_online && (
             <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-online border-2 border-card" />
           )}
@@ -112,6 +131,34 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
             </motion.div>
           );
         })}
+
+        {/* Typing indicator */}
+        {typingUsers.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex justify-start"
+          >
+            <div className="bg-chat-bubble-received text-chat-bubble-received-fg rounded-2xl rounded-bl-md px-4 py-2.5">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground italic">
+                  {typingUsers.join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing
+                </span>
+                <span className="flex gap-0.5 ml-1">
+                  {[0, 1, 2].map((i) => (
+                    <motion.span
+                      key={i}
+                      className="h-1.5 w-1.5 rounded-full bg-muted-foreground"
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.2 }}
+                    />
+                  ))}
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         <div ref={bottomRef} />
       </div>
 
@@ -120,7 +167,7 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
         <div className="flex gap-2">
           <Input
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={handleInputChange}
             placeholder="Type a message..."
             className="flex-1 bg-muted border-0"
           />
