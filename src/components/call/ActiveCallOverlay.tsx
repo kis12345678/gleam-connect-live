@@ -42,10 +42,14 @@ export function ActiveCallOverlay({
   isMuted,
   isVideoOff,
   callDuration,
+  peerConnection,
   onEndCall,
   onToggleMute,
   onToggleVideo,
 }: Props) {
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const qualityStats = useCallQuality(peerConnection, callState === "connected");
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
