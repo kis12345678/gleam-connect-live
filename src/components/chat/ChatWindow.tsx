@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Phone, Video, MoreVertical, ArrowLeft } from "lucide-react";
+import { Send, Phone, Video, MoreVertical, ArrowLeft, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useMessages } from "@/hooks/useMessages";
@@ -44,7 +44,19 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
     }
   };
 
-  const other = conversation?.participants.find(p => p.user_id !== user?.id);
+  const isGroup = conversation?.type === "group";
+  const other = !isGroup ? conversation?.participants.find(p => p.user_id !== user?.id) : null;
+  const headerName = isGroup ? (conversation?.name || "Group Chat") : (other?.display_name || "Unknown");
+  const headerSubtitle = isGroup
+    ? `${conversation?.participants.length} members`
+    : (other?.is_online ? "Online" : "Offline");
+
+  // For group messages, find the sender profile
+  const getSenderName = (senderId: string) => {
+    if (senderId === user?.id) return null;
+    const p = conversation?.participants.find(pp => pp.user_id === senderId);
+    return p?.display_name || "Unknown";
+  };
 
   if (!conversation) {
     return (
@@ -70,44 +82,45 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
           </Button>
         )}
         <div className="relative">
-          {other?.avatar_url ? (
-            <img
-              src={other.avatar_url}
-              alt={other.display_name}
-              className="h-10 w-10 rounded-full object-cover"
-            />
+          {isGroup ? (
+            <div className="h-10 w-10 rounded-full bg-accent/20 flex items-center justify-center">
+              <Users className="h-5 w-5 text-accent" />
+            </div>
+          ) : other?.avatar_url ? (
+            <img src={other.avatar_url} alt={other.display_name} className="h-10 w-10 rounded-full object-cover" />
           ) : (
             <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground font-semibold text-sm">
-              {other?.display_name.charAt(0).toUpperCase() || "?"}
+              {headerName.charAt(0).toUpperCase()}
             </div>
           )}
-          {other?.is_online && (
+          {!isGroup && other?.is_online && (
             <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-online border-2 border-card" />
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm">{other?.display_name || "Unknown"}</p>
-          <p className="text-xs text-muted-foreground">
-            {other?.is_online ? "Online" : "Offline"}
-          </p>
+          <p className="font-medium text-sm">{headerName}</p>
+          <p className="text-xs text-muted-foreground">{headerSubtitle}</p>
         </div>
-        <div className="flex gap-1">
-          <Button variant="ghost" size="icon" onClick={() => onStartCall?.("voice")}>
-            <Phone className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => onStartCall?.("video")}>
-            <Video className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" size="icon">
-            <MoreVertical className="h-5 w-5" />
-          </Button>
-        </div>
+        {!isGroup && (
+          <div className="flex gap-1">
+            <Button variant="ghost" size="icon" onClick={() => onStartCall?.("voice")}>
+              <Phone className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => onStartCall?.("video")}>
+              <Video className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon">
+              <MoreVertical className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
         {messages.map((msg, i) => {
           const isMine = msg.sender_id === user?.id;
+          const senderName = isGroup ? getSenderName(msg.sender_id) : null;
           return (
             <motion.div
               key={msg.id}
@@ -123,6 +136,9 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
                     : "bg-chat-bubble-received text-chat-bubble-received-fg rounded-bl-md"
                 }`}
               >
+                {senderName && (
+                  <p className="text-[11px] font-semibold text-primary mb-0.5">{senderName}</p>
+                )}
                 <p className="text-sm break-words">{msg.content}</p>
                 <p className={`text-[10px] mt-1 ${isMine ? "text-chat-bubble-sent-fg/60" : "text-muted-foreground"}`}>
                   {format(new Date(msg.created_at), "HH:mm")}
