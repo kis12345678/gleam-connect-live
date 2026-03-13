@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CallState, CallInfo } from "@/hooks/useWebRTC";
+import { useCallQuality } from "@/hooks/useCallQuality";
+import { CallQualityIndicator } from "@/components/call/CallQualityIndicator";
 import { motion } from "framer-motion";
 
 interface Props {
@@ -18,6 +20,7 @@ interface Props {
   isMuted: boolean;
   isVideoOff: boolean;
   callDuration: number;
+  peerConnection: RTCPeerConnection | null;
   onEndCall: () => void;
   onToggleMute: () => void;
   onToggleVideo: () => void;
