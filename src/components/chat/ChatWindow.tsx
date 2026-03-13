@@ -12,6 +12,7 @@ import { toast } from "sonner";
 interface Props {
   conversation: Conversation | null;
   onBack?: () => void;
+  onStartCall?: (callType: "voice" | "video") => void;
 }
 
 export function ChatWindow({ conversation, onBack }: Props) {
