@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CallState, CallInfo } from "@/hooks/useWebRTC";
+import { useCallQuality } from "@/hooks/useCallQuality";
+import { CallQualityIndicator } from "@/components/call/CallQualityIndicator";
 import { motion } from "framer-motion";
 
 interface Props {
@@ -18,6 +20,7 @@ interface Props {
   isMuted: boolean;
   isVideoOff: boolean;
   callDuration: number;
+  peerConnection: RTCPeerConnection | null;
   onEndCall: () => void;
   onToggleMute: () => void;
   onToggleVideo: () => void;
@@ -39,12 +42,14 @@ export function ActiveCallOverlay({
   isMuted,
   isVideoOff,
   callDuration,
+  peerConnection,
   onEndCall,
   onToggleMute,
   onToggleVideo,
 }: Props) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const qualityStats = useCallQuality(peerConnection, callState === "connected");
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -70,6 +75,13 @@ export function ActiveCallOverlay({
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[90] bg-background flex flex-col"
     >
+      {/* Quality indicator */}
+      {callState === "connected" && (
+        <div className="absolute top-4 left-4 z-10">
+          <CallQualityIndicator stats={qualityStats} />
+        </div>
+      )}
+
       {/* Video area */}
       {isVideo ? (
         <div className="flex-1 relative bg-foreground/5">
