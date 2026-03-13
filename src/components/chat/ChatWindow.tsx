@@ -12,9 +12,10 @@ import { toast } from "sonner";
 interface Props {
   conversation: Conversation | null;
   onBack?: () => void;
+  onStartCall?: (callType: "voice" | "video") => void;
 }
 
-export function ChatWindow({ conversation, onBack }: Props) {
+export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
   const { user } = useAuth();
   const { messages, sendMessage } = useMessages(conversation?.id || null);
   const [newMessage, setNewMessage] = useState("");
@@ -72,10 +73,10 @@ export function ChatWindow({ conversation, onBack }: Props) {
           </p>
         </div>
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" onClick={() => toast.info("Voice call coming soon!")}>
+          <Button variant="ghost" size="icon" onClick={() => onStartCall?.("voice")}>
             <Phone className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => toast.info("Video call coming soon!")}>
+          <Button variant="ghost" size="icon" onClick={() => onStartCall?.("video")}>
             <Video className="h-5 w-5" />
           </Button>
           <Button variant="ghost" size="icon">
