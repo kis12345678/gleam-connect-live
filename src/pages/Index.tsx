@@ -1,15 +1,38 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useConversations } from "@/hooks/useConversations";
+import { useWebRTC } from "@/hooks/useWebRTC";
+import { useIncomingCalls } from "@/hooks/useIncomingCalls";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatWindow } from "@/components/chat/ChatWindow";
+import { IncomingCallDialog } from "@/components/call/IncomingCallDialog";
+import { ActiveCallOverlay } from "@/components/call/ActiveCallOverlay";
 import { Navigate } from "react-router-dom";
+import { toast } from "sonner";
 
 export default function Index() {
   const { user, loading: authLoading } = useAuth();
   const { conversations, loading, startConversation, refresh } = useConversations();
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
+
+  const {
+    callState,
+    callInfo,
+    localStream,
+    remoteStream,
+    isMuted,
+    isVideoOff,
+    callDuration,
+    startCall,
+    answerCall,
+    endCall,
+    rejectCall,
+    toggleMute,
+    toggleVideo,
+  } = useWebRTC();
+
+  const { incomingCall, clearIncoming } = useIncomingCalls();
 
   // Refresh conversations periodically
   useEffect(() => {
@@ -27,7 +50,7 @@ export default function Index() {
 
   if (!user) return <Navigate to="/auth" replace />;
 
-  const activeConv = conversations.find(c => c.id === activeConvId) || null;
+  const activeConv = conversations.find((c) => c.id === activeConvId) || null;
 
   const handleSelect = (id: string) => {
     setActiveConvId(id);
@@ -42,10 +65,66 @@ export default function Index() {
     }
   };
 
+  const handleStartCall = async (callType: "voice" | "video") => {
+    if (!activeConv || !user) return;
+
+    const other = activeConv.participants.find((p) => p.user_id !== user.id);
+    if (!other) return;
+
+    try {
+      await startCall(activeConv.id, other.user_id, callType, other.display_name);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to start call");
+    }
+  };
+
+  const handleAnswerCall = async (call: typeof incomingCall) => {
+    if (!call) return;
+    clearIncoming();
+    try {
+      await answerCall(call);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to answer call");
+    }
+  };
+
+  const handleRejectCall = async (call: typeof incomingCall) => {
+    if (!call) return;
+    clearIncoming();
+    await rejectCall(call);
+  };
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar - hidden on mobile when chat is open */}
-      <div className={`w-full md:w-80 lg:w-96 flex-shrink-0 ${showChat ? "hidden md:flex" : "flex"} flex-col`}>
+      {/* Incoming call dialog */}
+      {incomingCall && callState === "idle" && (
+        <IncomingCallDialog
+          call={incomingCall}
+          onAnswer={handleAnswerCall}
+          onReject={handleRejectCall}
+        />
+      )}
+
+      {/* Active call overlay */}
+      <ActiveCallOverlay
+        callState={callState}
+        callInfo={callInfo}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        isMuted={isMuted}
+        isVideoOff={isVideoOff}
+        callDuration={callDuration}
+        onEndCall={endCall}
+        onToggleMute={toggleMute}
+        onToggleVideo={toggleVideo}
+      />
+
+      {/* Sidebar */}
+      <div
+        className={`w-full md:w-80 lg:w-96 flex-shrink-0 ${
+          showChat ? "hidden md:flex" : "flex"
+        } flex-col`}
+      >
         <ConversationList
           conversations={conversations}
           activeId={activeConvId}
@@ -53,11 +132,13 @@ export default function Index() {
           onStartConversation={handleStartConversation}
         />
       </div>
+
       {/* Chat area */}
       <div className={`flex-1 ${!showChat ? "hidden md:flex" : "flex"} flex-col`}>
         <ChatWindow
           conversation={activeConv}
           onBack={() => setShowChat(false)}
+          onStartCall={handleStartCall}
         />
       </div>
     </div>
