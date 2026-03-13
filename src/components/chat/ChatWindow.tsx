@@ -15,7 +15,7 @@ interface Props {
   onStartCall?: (callType: "voice" | "video") => void;
 }
 
-export function ChatWindow({ conversation, onBack }: Props) {
+export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
   const { user } = useAuth();
   const { messages, sendMessage } = useMessages(conversation?.id || null);
   const [newMessage, setNewMessage] = useState("");
