@@ -75,6 +75,13 @@ export function ActiveCallOverlay({
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[90] bg-background flex flex-col"
     >
+      {/* Quality indicator */}
+      {callState === "connected" && (
+        <div className="absolute top-4 left-4 z-10">
+          <CallQualityIndicator stats={qualityStats} />
+        </div>
+      )}
+
       {/* Video area */}
       {isVideo ? (
         <div className="flex-1 relative bg-foreground/5">
