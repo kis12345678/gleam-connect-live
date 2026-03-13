@@ -50,8 +50,7 @@ export function useIncomingCalls() {
                 icon: "/pwa-192x192.png",
                 tag: "incoming-call",
                 requireInteraction: true,
-                vibrate: [200, 100, 200, 100, 200],
-              }
+              } as NotificationOptions
             );
           }
 
