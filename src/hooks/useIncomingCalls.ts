@@ -2,10 +2,19 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { CallInfo } from "./useWebRTC";
+import { useNotificationPermission } from "./useNotificationPermission";
 
 export function useIncomingCalls() {
   const { user } = useAuth();
   const [incomingCall, setIncomingCall] = useState<CallInfo | null>(null);
+  const { permission, requestPermission, showNotification } = useNotificationPermission();
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if (permission === "default") {
+      requestPermission();
+    }
+  }, [permission, requestPermission]);
 
   useEffect(() => {
     if (!user) return;
@@ -24,13 +33,26 @@ export function useIncomingCalls() {
 
           // Only show incoming calls for this user
           if (signal.callee_id === user.id && signal.signal_type === "call-start") {
-            setIncomingCall({
+            const callData: CallInfo = {
               conversationId: signal.conversation_id,
               callerId: signal.caller_id,
               calleeId: signal.callee_id,
               callType: signal.call_type,
               callerName: signal.signal_data?.callerName || "Unknown",
-            });
+            };
+            setIncomingCall(callData);
+
+            // Show browser notification when tab is in background
+            showNotification(
+              `Incoming ${signal.call_type} call`,
+              {
+                body: `${callData.callerName} is calling you`,
+                icon: "/pwa-192x192.png",
+                tag: "incoming-call",
+                requireInteraction: true,
+                vibrate: [200, 100, 200, 100, 200],
+              }
+            );
           }
 
           // Clear incoming call if ended/rejected
@@ -47,7 +69,7 @@ export function useIncomingCalls() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, showNotification]);
 
   const clearIncoming = () => setIncomingCall(null);
 
