@@ -8,14 +8,16 @@ import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { IncomingCallDialog } from "@/components/call/IncomingCallDialog";
 import { ActiveCallOverlay } from "@/components/call/ActiveCallOverlay";
+import SettingsPage from "@/pages/Settings";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 
 export default function Index() {
   const { user, loading: authLoading } = useAuth();
-  const { conversations, loading, startConversation, refresh } = useConversations();
+  const { conversations, loading, startConversation, createGroupConversation, refresh } = useConversations();
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const {
     callState,
@@ -37,7 +39,6 @@ export default function Index() {
   const { incomingCall, clearIncoming } = useIncomingCalls();
   const { logCall } = useCallHistory();
 
-  // Refresh conversations periodically
   useEffect(() => {
     const interval = setInterval(refresh, 5000);
     return () => clearInterval(interval);
@@ -58,6 +59,7 @@ export default function Index() {
   const handleSelect = (id: string) => {
     setActiveConvId(id);
     setShowChat(true);
+    setShowSettings(false);
   };
 
   const handleStartConversation = async (userId: string) => {
@@ -68,12 +70,18 @@ export default function Index() {
     }
   };
 
+  const handleCreateGroup = async (userIds: string[], name: string) => {
+    const convId = await createGroupConversation(userIds, name);
+    if (convId) {
+      setActiveConvId(convId);
+      setShowChat(true);
+    }
+  };
+
   const handleStartCall = async (callType: "voice" | "video") => {
     if (!activeConv || !user) return;
-
     const other = activeConv.participants.find((p) => p.user_id !== user.id);
     if (!other) return;
-
     try {
       await startCall(activeConv.id, other.user_id, callType, other.display_name);
     } catch (err: any) {
@@ -121,7 +129,6 @@ export default function Index() {
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      {/* Incoming call dialog */}
       {incomingCall && callState === "idle" && (
         <IncomingCallDialog
           call={incomingCall}
@@ -130,7 +137,6 @@ export default function Index() {
         />
       )}
 
-      {/* Active call overlay */}
       <ActiveCallOverlay
         callState={callState}
         callInfo={callInfo}
@@ -148,7 +154,7 @@ export default function Index() {
       {/* Sidebar */}
       <div
         className={`w-full md:w-80 lg:w-96 flex-shrink-0 ${
-          showChat ? "hidden md:flex" : "flex"
+          showChat || showSettings ? "hidden md:flex" : "flex"
         } flex-col`}
       >
         <ConversationList
@@ -156,16 +162,22 @@ export default function Index() {
           activeId={activeConvId}
           onSelect={handleSelect}
           onStartConversation={handleStartConversation}
+          onCreateGroup={handleCreateGroup}
+          onOpenSettings={() => { setShowSettings(true); setShowChat(false); }}
         />
       </div>
 
-      {/* Chat area */}
-      <div className={`flex-1 ${!showChat ? "hidden md:flex" : "flex"} flex-col`}>
-        <ChatWindow
-          conversation={activeConv}
-          onBack={() => setShowChat(false)}
-          onStartCall={handleStartCall}
-        />
+      {/* Main area */}
+      <div className={`flex-1 ${!showChat && !showSettings ? "hidden md:flex" : "flex"} flex-col`}>
+        {showSettings ? (
+          <SettingsPage onBack={() => setShowSettings(false)} />
+        ) : (
+          <ChatWindow
+            conversation={activeConv}
+            onBack={() => setShowChat(false)}
+            onStartCall={handleStartCall}
+          />
+        )}
       </div>
     </div>
   );
