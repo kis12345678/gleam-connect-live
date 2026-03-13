@@ -84,12 +84,12 @@ export function useWebRTC() {
       });
 
       // Handle remote tracks
-      const remote = new MediaStream();
       pc.ontrack = (event) => {
-        event.streams[0].getTracks().forEach((track) => {
-          remote.addTrack(track);
+        setRemoteStream((prev) => {
+          const stream = prev || new MediaStream();
+          event.track && stream.addTrack(event.track);
+          return stream;
         });
-        setRemoteStream(remote);
       };
 
       peerConnection.current = pc;
