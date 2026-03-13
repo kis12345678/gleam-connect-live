@@ -115,6 +115,7 @@ export default function Index() {
         isMuted={isMuted}
         isVideoOff={isVideoOff}
         callDuration={callDuration}
+        peerConnection={peerConnection}
         onEndCall={endCall}
         onToggleMute={toggleMute}
         onToggleVideo={toggleVideo}
