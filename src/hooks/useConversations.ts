@@ -110,10 +110,13 @@ export function useConversations() {
 
     if (!newConv) return null;
 
-    await supabase.from("conversation_participants").insert([
-      { conversation_id: newConv.id, user_id: user.id },
-      { conversation_id: newConv.id, user_id: otherUserId },
-    ]);
+    // Insert own participation first, then the other user's
+    await supabase.from("conversation_participants").insert(
+      { conversation_id: newConv.id, user_id: user.id }
+    );
+    await supabase.from("conversation_participants").insert(
+      { conversation_id: newConv.id, user_id: otherUserId }
+    );
 
     await fetchConversations();
     return newConv.id;
