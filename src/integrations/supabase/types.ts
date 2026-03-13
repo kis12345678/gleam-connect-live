@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      call_signals: {
+        Row: {
+          call_type: string
+          callee_id: string
+          caller_id: string
+          conversation_id: string
+          created_at: string
+          id: string
+          signal_data: Json | null
+          signal_type: string
+          status: string
+        }
+        Insert: {
+          call_type?: string
+          callee_id: string
+          caller_id: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          signal_data?: Json | null
+          signal_type: string
+          status?: string
+        }
+        Update: {
+          call_type?: string
+          callee_id?: string
+          caller_id?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          signal_data?: Json | null
+          signal_type?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_signals_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
