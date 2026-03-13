@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth";
 import { useConversations } from "@/hooks/useConversations";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useIncomingCalls } from "@/hooks/useIncomingCalls";
+import { useCallHistory } from "@/hooks/useCallHistory";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { IncomingCallDialog } from "@/components/call/IncomingCallDialog";
@@ -34,6 +35,7 @@ export default function Index() {
   } = useWebRTC();
 
   const { incomingCall, clearIncoming } = useIncomingCalls();
+  const { logCall } = useCallHistory();
 
   // Refresh conversations periodically
   useEffect(() => {
@@ -79,6 +81,20 @@ export default function Index() {
     }
   };
 
+  const handleEndCall = async () => {
+    if (callInfo) {
+      await logCall({
+        conversationId: callInfo.conversationId,
+        callerId: callInfo.callerId,
+        calleeId: callInfo.calleeId,
+        callType: callInfo.callType,
+        status: callDuration > 0 ? "completed" : "missed",
+        duration: callDuration,
+      });
+    }
+    await endCall();
+  };
+
   const handleAnswerCall = async (call: typeof incomingCall) => {
     if (!call) return;
     clearIncoming();
@@ -92,6 +108,14 @@ export default function Index() {
   const handleRejectCall = async (call: typeof incomingCall) => {
     if (!call) return;
     clearIncoming();
+    await logCall({
+      conversationId: call.conversationId,
+      callerId: call.callerId,
+      calleeId: call.calleeId,
+      callType: call.callType,
+      status: "rejected",
+      duration: 0,
+    });
     await rejectCall(call);
   };
 
@@ -116,7 +140,7 @@ export default function Index() {
         isVideoOff={isVideoOff}
         callDuration={callDuration}
         peerConnection={peerConnection}
-        onEndCall={endCall}
+        onEndCall={handleEndCall}
         onToggleMute={toggleMute}
         onToggleVideo={toggleVideo}
       />
