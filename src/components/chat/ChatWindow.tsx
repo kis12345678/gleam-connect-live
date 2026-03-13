@@ -73,10 +73,10 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
           </p>
         </div>
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" onClick={() => toast.info("Voice call coming soon!")}>
+          <Button variant="ghost" size="icon" onClick={() => onStartCall?.("voice")}>
             <Phone className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => toast.info("Video call coming soon!")}>
+          <Button variant="ghost" size="icon" onClick={() => onStartCall?.("video")}>
             <Video className="h-5 w-5" />
           </Button>
           <Button variant="ghost" size="icon">
