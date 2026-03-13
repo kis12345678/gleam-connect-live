@@ -1,0 +1,1 @@
+DELETE FROM conversations WHERE id NOT IN (SELECT DISTINCT conversation_id FROM conversation_participants);
