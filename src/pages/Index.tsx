@@ -24,6 +24,7 @@ export default function Index() {
     isMuted,
     isVideoOff,
     callDuration,
+    peerConnection,
     startCall,
     answerCall,
     endCall,
