@@ -110,7 +110,6 @@ export function useConversations() {
 
     if (!newConv) return null;
 
-    // Insert own participation first, then the other user's
     await supabase.from("conversation_participants").insert(
       { conversation_id: newConv.id, user_id: user.id }
     );
@@ -122,5 +121,32 @@ export function useConversations() {
     return newConv.id;
   };
 
-  return { conversations, loading, startConversation, refresh: fetchConversations };
+  const createGroupConversation = async (userIds: string[], name: string) => {
+    if (!user) return null;
+
+    const { data: newConv } = await supabase
+      .from("conversations")
+      .insert({ type: "group", name })
+      .select()
+      .single();
+
+    if (!newConv) return null;
+
+    // Add self first
+    await supabase.from("conversation_participants").insert(
+      { conversation_id: newConv.id, user_id: user.id }
+    );
+
+    // Add all selected users
+    for (const uid of userIds) {
+      await supabase.from("conversation_participants").insert(
+        { conversation_id: newConv.id, user_id: uid }
+      );
+    }
+
+    await fetchConversations();
+    return newConv.id;
+  };
+
+  return { conversations, loading, startConversation, createGroupConversation, refresh: fetchConversations };
 }
