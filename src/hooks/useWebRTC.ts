@@ -417,6 +417,7 @@ export function useWebRTC() {
     isMuted,
     isVideoOff,
     callDuration,
+    peerConnection: peerConnection.current,
     startCall,
     answerCall,
     endCall,
