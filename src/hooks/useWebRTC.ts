@@ -31,22 +31,29 @@ export function useWebRTC() {
   const [callDuration, setCallDuration] = useState(0);
 
   const peerConnection = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // Cleanup function
+  // Cleanup function — uses refs to avoid stale closures
   const cleanup = useCallback(() => {
     if (callTimerRef.current) {
       clearInterval(callTimerRef.current);
       callTimerRef.current = null;
     }
     if (peerConnection.current) {
+      peerConnection.current.ontrack = null;
+      peerConnection.current.onicecandidate = null;
+      peerConnection.current.oniceconnectionstatechange = null;
       peerConnection.current.close();
       peerConnection.current = null;
     }
-    if (localStream) {
-      localStream.getTracks().forEach((t) => t.stop());
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
     }
+    remoteStreamRef.current = null;
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
@@ -56,7 +63,7 @@ export function useWebRTC() {
     setCallDuration(0);
     setIsMuted(false);
     setIsVideoOff(false);
-  }, [localStream]);
+  }, []);
 
   // Get media stream
   const getMedia = useCallback(async (callType: "voice" | "video") => {
@@ -65,6 +72,7 @@ export function useWebRTC() {
         audio: true,
         video: callType === "video",
       });
+      localStreamRef.current = stream;
       setLocalStream(stream);
       return stream;
     } catch (err) {
@@ -83,13 +91,28 @@ export function useWebRTC() {
         pc.addTrack(track, stream);
       });
 
-      // Handle remote tracks
+      // Create a fresh remote stream and set it immediately
+      const newRemoteStream = new MediaStream();
+      remoteStreamRef.current = newRemoteStream;
+      setRemoteStream(newRemoteStream);
+
+      // Handle remote tracks — add to existing stream object
       pc.ontrack = (event) => {
-        setRemoteStream((prev) => {
-          const stream = prev || new MediaStream();
-          event.track && stream.addTrack(event.track);
-          return stream;
-        });
+        console.log("ontrack fired, track kind:", event.track.kind);
+        if (remoteStreamRef.current) {
+          remoteStreamRef.current.addTrack(event.track);
+          // Force re-render by setting a new reference
+          setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
+          remoteStreamRef.current = new MediaStream(remoteStreamRef.current.getTracks());
+        }
+      };
+
+      // Monitor connection state
+      pc.oniceconnectionstatechange = () => {
+        console.log("ICE connection state:", pc.iceConnectionState);
+        if (pc.iceConnectionState === "failed" || pc.iceConnectionState === "disconnected") {
+          console.warn("ICE connection issue:", pc.iceConnectionState);
+        }
       };
 
       peerConnection.current = pc;
@@ -116,16 +139,11 @@ export function useWebRTC() {
           async (payload) => {
             const signal = payload.new as any;
 
-            // Determine the actual sender: if caller_id matches the other user,
-            // they sent it as caller; if callee_id matches, they sent it as callee.
-            // For call-end/reject, always process.
             const isFromOther =
               signal.signal_type === "call-end" ||
               signal.signal_type === "call-reject" ||
-              // Caller sends offer & ice-candidates with their own caller_id
               (signal.caller_id === otherUserId &&
                 (signal.signal_type === "offer" || signal.signal_type === "ice-candidate")) ||
-              // Callee sends answer & ice-candidates with their own callee_id
               (signal.callee_id === otherUserId &&
                 (signal.signal_type === "answer" || signal.signal_type === "ice-candidate"));
 
@@ -384,23 +402,23 @@ export function useWebRTC() {
 
   // Toggle mute
   const toggleMute = useCallback(() => {
-    if (localStream) {
-      localStream.getAudioTracks().forEach((t) => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach((t) => {
         t.enabled = !t.enabled;
       });
       setIsMuted((m) => !m);
     }
-  }, [localStream]);
+  }, []);
 
   // Toggle video
   const toggleVideo = useCallback(() => {
-    if (localStream) {
-      localStream.getVideoTracks().forEach((t) => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getVideoTracks().forEach((t) => {
         t.enabled = !t.enabled;
       });
       setIsVideoOff((v) => !v);
     }
-  }, [localStream]);
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
