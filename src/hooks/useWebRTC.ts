@@ -84,12 +84,12 @@ export function useWebRTC() {
       });
 
       // Handle remote tracks
-      const remote = new MediaStream();
       pc.ontrack = (event) => {
-        event.streams[0].getTracks().forEach((track) => {
-          remote.addTrack(track);
+        setRemoteStream((prev) => {
+          const stream = prev || new MediaStream();
+          event.track && stream.addTrack(event.track);
+          return stream;
         });
-        setRemoteStream(remote);
       };
 
       peerConnection.current = pc;
@@ -116,11 +116,20 @@ export function useWebRTC() {
           async (payload) => {
             const signal = payload.new as any;
 
-            // Ignore our own signals
-            if (signal.caller_id === user.id && signal.signal_type !== "call-end" && signal.signal_type !== "call-reject") {
-              if (signal.signal_type === "offer" || signal.signal_type === "ice-candidate") return;
-            }
-            if (signal.callee_id === user.id && signal.signal_type === "answer") return;
+            // Determine the actual sender: if caller_id matches the other user,
+            // they sent it as caller; if callee_id matches, they sent it as callee.
+            // For call-end/reject, always process.
+            const isFromOther =
+              signal.signal_type === "call-end" ||
+              signal.signal_type === "call-reject" ||
+              // Caller sends offer & ice-candidates with their own caller_id
+              (signal.caller_id === otherUserId &&
+                (signal.signal_type === "offer" || signal.signal_type === "ice-candidate")) ||
+              // Callee sends answer & ice-candidates with their own callee_id
+              (signal.callee_id === otherUserId &&
+                (signal.signal_type === "answer" || signal.signal_type === "ice-candidate"));
+
+            if (!isFromOther) return;
 
             const pc = peerConnection.current;
 
