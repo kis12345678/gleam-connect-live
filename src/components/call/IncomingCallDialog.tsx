@@ -53,7 +53,8 @@ export function IncomingCallDialog({ call, onAnswer, onReject }: Props) {
             </Button>
             <Button
               size="lg"
-              className="rounded-full h-14 w-14 p-0 bg-green-500 hover:bg-green-600 text-white"
+              className="rounded-full h-14 w-14 p-0"
+              style={{ backgroundColor: "hsl(var(--call-accept))", color: "hsl(var(--call-accept-foreground))" }}
               onClick={() => onAnswer(call)}
             >
               {call.callType === "video" ? (
