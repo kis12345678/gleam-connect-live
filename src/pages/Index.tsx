@@ -39,6 +39,17 @@ export default function Index() {
 
   const { incomingCall, clearIncoming } = useIncomingCalls();
   const { logCall } = useCallHistory();
+  const ringtone = useRingtone();
+
+  // Play/stop ringtone based on incoming call
+  useEffect(() => {
+    if (incomingCall && callState === "idle") {
+      ringtone.play();
+    } else {
+      ringtone.stop();
+    }
+    return () => ringtone.stop();
+  }, [incomingCall, callState]);
 
   useEffect(() => {
     const interval = setInterval(refresh, 5000);
