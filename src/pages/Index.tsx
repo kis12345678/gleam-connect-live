@@ -4,6 +4,7 @@ import { useConversations } from "@/hooks/useConversations";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useIncomingCalls } from "@/hooks/useIncomingCalls";
 import { useCallHistory } from "@/hooks/useCallHistory";
+import { useRingtone } from "@/hooks/useRingtone";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { IncomingCallDialog } from "@/components/call/IncomingCallDialog";
