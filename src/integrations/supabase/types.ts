@@ -232,6 +232,39 @@ export type Database = {
         }
         Relationships: []
       }
+      statuses: {
+        Row: {
+          background_color: string | null
+          content: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          media_type: string | null
+          media_url: string | null
+          user_id: string
+        }
+        Insert: {
+          background_color?: string | null
+          content?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          user_id: string
+        }
+        Update: {
+          background_color?: string | null
+          content?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

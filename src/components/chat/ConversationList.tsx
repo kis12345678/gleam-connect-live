@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Search, Plus, Settings, Phone, MessageSquare, Camera, Users } from "lucide-react";
+import { Search, Plus, Settings, Phone, MessageSquare, Camera, Users, CircleDot } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -18,9 +18,10 @@ interface Props {
   onStartConversation: (userId: string) => void;
   onCreateGroup: (userIds: string[], name: string) => void;
   onOpenSettings: () => void;
+  onOpenStatus?: () => void;
 }
 
-export function ConversationList({ conversations, activeId, onSelect, onStartConversation, onCreateGroup, onOpenSettings }: Props) {
+export function ConversationList({ conversations, activeId, onSelect, onStartConversation, onCreateGroup, onOpenSettings, onOpenStatus }: Props) {
   const { user } = useAuth();
   const { profile } = useProfile();
   const { uploadAvatar, uploading } = useAvatarUpload();
@@ -137,6 +138,15 @@ export function ConversationList({ conversations, activeId, onSelect, onStartCon
           <MessageSquare className="h-4 w-4" />
           Chats
         </button>
+        {onOpenStatus && (
+          <button
+            onClick={onOpenStatus}
+            className="flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors text-muted-foreground hover:text-foreground"
+          >
+            <CircleDot className="h-4 w-4" />
+            Status
+          </button>
+        )}
         <button
           onClick={() => setTab("calls")}
           className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
