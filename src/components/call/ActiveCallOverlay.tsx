@@ -49,6 +49,7 @@ export function ActiveCallOverlay({
 }: Props) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const qualityStats = useCallQuality(peerConnection, callState === "connected");
 
   useEffect(() => {
@@ -58,8 +59,14 @@ export function ActiveCallOverlay({
   }, [localStream]);
 
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    if (remoteStream) {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
+      // Always set audio element for voice calls
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = remoteStream;
+      }
     }
   }, [remoteStream]);
 
