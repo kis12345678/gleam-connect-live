@@ -67,6 +67,10 @@ export function useIncomingCalls() {
             (signal.caller_id === user.id || signal.callee_id === user.id)
           ) {
             setIncomingCall(null);
+            // Stop vibration
+            if ("vibrate" in navigator) {
+              navigator.vibrate(0);
+            }
           }
         }
       )
