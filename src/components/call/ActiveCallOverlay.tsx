@@ -133,6 +133,8 @@ export function ActiveCallOverlay({
       ) : (
         /* Voice call - avatar view */
         <div className="flex-1 flex items-center justify-center">
+          {/* Hidden audio element for voice call playback */}
+          <audio ref={remoteAudioRef} autoPlay playsInline />
           <div className="text-center">
             <motion.div
               animate={
