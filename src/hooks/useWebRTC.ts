@@ -69,7 +69,12 @@ export function useWebRTC() {
   const getMedia = useCallback(async (callType: "voice" | "video") => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+        },
         video: callType === "video",
       });
       localStreamRef.current = stream;

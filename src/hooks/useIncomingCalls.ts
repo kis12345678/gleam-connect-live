@@ -42,6 +42,13 @@ export function useIncomingCalls() {
             };
             setIncomingCall(callData);
 
+            // Vibrate on mobile devices
+            if ("vibrate" in navigator) {
+              // Ring pattern: vibrate 500ms, pause 300ms, repeat
+              const vibratePattern = [500, 300, 500, 300, 500, 300, 500, 300, 500, 300, 500];
+              navigator.vibrate(vibratePattern);
+            }
+
             // Show browser notification when tab is in background
             showNotification(
               `Incoming ${signal.call_type} call`,
@@ -60,6 +67,10 @@ export function useIncomingCalls() {
             (signal.caller_id === user.id || signal.callee_id === user.id)
           ) {
             setIncomingCall(null);
+            // Stop vibration
+            if ("vibrate" in navigator) {
+              navigator.vibrate(0);
+            }
           }
         }
       )
@@ -70,7 +81,10 @@ export function useIncomingCalls() {
     };
   }, [user, showNotification]);
 
-  const clearIncoming = () => setIncomingCall(null);
+  const clearIncoming = () => {
+    setIncomingCall(null);
+    if ("vibrate" in navigator) navigator.vibrate(0);
+  };
 
   return { incomingCall, clearIncoming };
 }
