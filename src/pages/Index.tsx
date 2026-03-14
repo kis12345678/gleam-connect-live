@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useConversations } from "@/hooks/useConversations";
 import { useWebRTC } from "@/hooks/useWebRTC";
@@ -9,6 +9,7 @@ import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { IncomingCallDialog } from "@/components/call/IncomingCallDialog";
 import { ActiveCallOverlay } from "@/components/call/ActiveCallOverlay";
+import { StatusList } from "@/components/status/StatusList";
 import SettingsPage from "@/pages/Settings";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -19,29 +20,18 @@ export default function Index() {
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showStatus, setShowStatus] = useState(false);
 
   const {
-    callState,
-    callInfo,
-    localStream,
-    remoteStream,
-    isMuted,
-    isVideoOff,
-    callDuration,
-    peerConnection,
-    startCall,
-    answerCall,
-    endCall,
-    rejectCall,
-    toggleMute,
-    toggleVideo,
+    callState, callInfo, localStream, remoteStream,
+    isMuted, isVideoOff, callDuration, peerConnection,
+    startCall, answerCall, endCall, rejectCall, toggleMute, toggleVideo,
   } = useWebRTC();
 
   const { incomingCall, clearIncoming } = useIncomingCalls();
   const { logCall } = useCallHistory();
   const ringtone = useRingtone();
 
-  // Play/stop ringtone based on incoming call
   useEffect(() => {
     if (incomingCall && callState === "idle") {
       ringtone.play();
@@ -72,22 +62,17 @@ export default function Index() {
     setActiveConvId(id);
     setShowChat(true);
     setShowSettings(false);
+    setShowStatus(false);
   };
 
   const handleStartConversation = async (userId: string) => {
     const convId = await startConversation(userId);
-    if (convId) {
-      setActiveConvId(convId);
-      setShowChat(true);
-    }
+    if (convId) { setActiveConvId(convId); setShowChat(true); }
   };
 
   const handleCreateGroup = async (userIds: string[], name: string) => {
     const convId = await createGroupConversation(userIds, name);
-    if (convId) {
-      setActiveConvId(convId);
-      setShowChat(true);
-    }
+    if (convId) { setActiveConvId(convId); setShowChat(true); }
   };
 
   const handleStartCall = async (callType: "voice" | "video") => {
@@ -118,77 +103,58 @@ export default function Index() {
   const handleAnswerCall = async (call: typeof incomingCall) => {
     if (!call) return;
     clearIncoming();
-    try {
-      await answerCall(call);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to answer call");
-    }
+    try { await answerCall(call); } catch (err: any) { toast.error(err.message || "Failed to answer call"); }
   };
 
   const handleRejectCall = async (call: typeof incomingCall) => {
     if (!call) return;
     clearIncoming();
-    await logCall({
-      conversationId: call.conversationId,
-      callerId: call.callerId,
-      calleeId: call.calleeId,
-      callType: call.callType,
-      status: "rejected",
-      duration: 0,
-    });
+    await logCall({ conversationId: call.conversationId, callerId: call.callerId, calleeId: call.calleeId, callType: call.callType, status: "rejected", duration: 0 });
     await rejectCall(call);
   };
+
+  const mainView = showSettings ? "settings" : showStatus ? "status" : "chat";
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       {incomingCall && callState === "idle" && (
-        <IncomingCallDialog
-          call={incomingCall}
-          onAnswer={handleAnswerCall}
-          onReject={handleRejectCall}
-        />
+        <IncomingCallDialog call={incomingCall} onAnswer={handleAnswerCall} onReject={handleRejectCall} />
       )}
 
       <ActiveCallOverlay
-        callState={callState}
-        callInfo={callInfo}
-        localStream={localStream}
-        remoteStream={remoteStream}
-        isMuted={isMuted}
-        isVideoOff={isVideoOff}
-        callDuration={callDuration}
-        peerConnection={peerConnection}
-        onEndCall={handleEndCall}
-        onToggleMute={toggleMute}
-        onToggleVideo={toggleVideo}
+        callState={callState} callInfo={callInfo} localStream={localStream} remoteStream={remoteStream}
+        isMuted={isMuted} isVideoOff={isVideoOff} callDuration={callDuration} peerConnection={peerConnection}
+        onEndCall={handleEndCall} onToggleMute={toggleMute} onToggleVideo={toggleVideo}
       />
 
       {/* Sidebar */}
-      <div
-        className={`w-full md:w-80 lg:w-96 flex-shrink-0 ${
-          showChat || showSettings ? "hidden md:flex" : "flex"
-        } flex-col`}
-      >
+      <div className={`w-full md:w-80 lg:w-96 flex-shrink-0 ${showChat || showSettings || showStatus ? "hidden md:flex" : "flex"} flex-col`}>
         <ConversationList
           conversations={conversations}
           activeId={activeConvId}
           onSelect={handleSelect}
           onStartConversation={handleStartConversation}
           onCreateGroup={handleCreateGroup}
-          onOpenSettings={() => { setShowSettings(true); setShowChat(false); }}
+          onOpenSettings={() => { setShowSettings(true); setShowChat(false); setShowStatus(false); }}
+          onOpenStatus={() => { setShowStatus(true); setShowChat(false); setShowSettings(false); }}
         />
       </div>
 
       {/* Main area */}
-      <div className={`flex-1 ${!showChat && !showSettings ? "hidden md:flex" : "flex"} flex-col`}>
-        {showSettings ? (
+      <div className={`flex-1 ${!showChat && !showSettings && !showStatus ? "hidden md:flex" : "flex"} flex-col`}>
+        {mainView === "settings" ? (
           <SettingsPage onBack={() => setShowSettings(false)} />
+        ) : mainView === "status" ? (
+          <div className="flex-1 flex flex-col">
+            <div className="md:hidden p-2 border-b border-border">
+              <Button variant="ghost" size="sm" onClick={() => setShowStatus(false)}>
+                ← Back
+              </Button>
+            </div>
+            <StatusList />
+          </div>
         ) : (
-          <ChatWindow
-            conversation={activeConv}
-            onBack={() => setShowChat(false)}
-            onStartCall={handleStartCall}
-          />
+          <ChatWindow conversation={activeConv} onBack={() => setShowChat(false)} onStartCall={handleStartCall} />
         )}
       </div>
     </div>
