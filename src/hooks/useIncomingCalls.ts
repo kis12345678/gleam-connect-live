@@ -81,7 +81,10 @@ export function useIncomingCalls() {
     };
   }, [user, showNotification]);
 
-  const clearIncoming = () => setIncomingCall(null);
+  const clearIncoming = () => {
+    setIncomingCall(null);
+    if ("vibrate" in navigator) navigator.vibrate(0);
+  };
 
   return { incomingCall, clearIncoming };
 }
