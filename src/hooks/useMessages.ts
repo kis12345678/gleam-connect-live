@@ -48,14 +48,14 @@ export function useMessages(conversationId: string | null) {
     return () => { supabase.removeChannel(channel); };
   }, [conversationId]);
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string, messageType: string = "text") => {
     if (!conversationId || !user || !content.trim()) return;
     await supabase.from("messages").insert({
       conversation_id: conversationId,
       sender_id: user.id,
       content: content.trim(),
+      message_type: messageType,
     });
-    // Update conversation timestamp
     await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
   };
 
