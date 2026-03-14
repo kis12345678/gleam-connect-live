@@ -4,6 +4,7 @@ import { useConversations } from "@/hooks/useConversations";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useIncomingCalls } from "@/hooks/useIncomingCalls";
 import { useCallHistory } from "@/hooks/useCallHistory";
+import { useRingtone } from "@/hooks/useRingtone";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { IncomingCallDialog } from "@/components/call/IncomingCallDialog";
@@ -38,6 +39,17 @@ export default function Index() {
 
   const { incomingCall, clearIncoming } = useIncomingCalls();
   const { logCall } = useCallHistory();
+  const ringtone = useRingtone();
+
+  // Play/stop ringtone based on incoming call
+  useEffect(() => {
+    if (incomingCall && callState === "idle") {
+      ringtone.play();
+    } else {
+      ringtone.stop();
+    }
+    return () => ringtone.stop();
+  }, [incomingCall, callState]);
 
   useEffect(() => {
     const interval = setInterval(refresh, 5000);
