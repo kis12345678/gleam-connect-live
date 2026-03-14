@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Search, Plus, Settings, Phone, MessageSquare, Camera, Users } from "lucide-react";
+import { Search, Plus, Settings, Phone, MessageSquare, Camera, Users, CircleDot } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
