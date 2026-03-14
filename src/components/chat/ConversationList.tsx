@@ -18,6 +18,7 @@ interface Props {
   onStartConversation: (userId: string) => void;
   onCreateGroup: (userIds: string[], name: string) => void;
   onOpenSettings: () => void;
+  onOpenStatus?: () => void;
 }
 
 export function ConversationList({ conversations, activeId, onSelect, onStartConversation, onCreateGroup, onOpenSettings }: Props) {

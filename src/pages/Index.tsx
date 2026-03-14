@@ -13,6 +13,7 @@ import { StatusList } from "@/components/status/StatusList";
 import SettingsPage from "@/pages/Settings";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 export default function Index() {
   const { user, loading: authLoading } = useAuth();
