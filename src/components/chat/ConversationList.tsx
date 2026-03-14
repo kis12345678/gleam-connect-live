@@ -138,6 +138,15 @@ export function ConversationList({ conversations, activeId, onSelect, onStartCon
           <MessageSquare className="h-4 w-4" />
           Chats
         </button>
+        {onOpenStatus && (
+          <button
+            onClick={onOpenStatus}
+            className="flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors text-muted-foreground hover:text-foreground"
+          >
+            <CircleDot className="h-4 w-4" />
+            Status
+          </button>
+        )}
         <button
           onClick={() => setTab("calls")}
           className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
