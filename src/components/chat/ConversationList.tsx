@@ -21,7 +21,7 @@ interface Props {
   onOpenStatus?: () => void;
 }
 
-export function ConversationList({ conversations, activeId, onSelect, onStartConversation, onCreateGroup, onOpenSettings }: Props) {
+export function ConversationList({ conversations, activeId, onSelect, onStartConversation, onCreateGroup, onOpenSettings, onOpenStatus }: Props) {
   const { user } = useAuth();
   const { profile } = useProfile();
   const { uploadAvatar, uploading } = useAvatarUpload();
