@@ -42,6 +42,13 @@ export function useIncomingCalls() {
             };
             setIncomingCall(callData);
 
+            // Vibrate on mobile devices
+            if ("vibrate" in navigator) {
+              // Ring pattern: vibrate 500ms, pause 300ms, repeat
+              const vibratePattern = [500, 300, 500, 300, 500, 300, 500, 300, 500, 300, 500];
+              navigator.vibrate(vibratePattern);
+            }
+
             // Show browser notification when tab is in background
             showNotification(
               `Incoming ${signal.call_type} call`,
