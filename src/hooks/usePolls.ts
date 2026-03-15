@@ -40,7 +40,7 @@ export function usePolls(conversationId: string | null) {
         .from("poll_votes" as any)
         .select("*")
         .in("poll_id", pollIds);
-      setVotes((voteData as PollVote[]) || []);
+      setVotes((voteData as unknown as PollVote[]) || []);
     }
   }, [conversationId]);
 
