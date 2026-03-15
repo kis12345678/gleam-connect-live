@@ -1,15 +1,22 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Phone, Video, MoreVertical, ArrowLeft, Users, Paperclip, Image, FileText, X, Play } from "lucide-react";
+import { Send, Phone, Video, MoreVertical, ArrowLeft, Users, Paperclip, Image, FileText, X, Smile, BarChart3, Clock, Pin, Search, Bot } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useMessages } from "@/hooks/useMessages";
+import { useMessages, Message } from "@/hooks/useMessages";
+import { useMessageReactions } from "@/hooks/useMessageReactions";
+import { usePolls } from "@/hooks/usePolls";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { useAuth } from "@/lib/auth";
 import { useProfile } from "@/hooks/useProfile";
 import { Conversation } from "@/hooks/useConversations";
 import { supabase } from "@/integrations/supabase/client";
+import { MessageBubble } from "./MessageBubble";
+import { EmojiPicker } from "./EmojiPicker";
+import { VoiceRecorder } from "./VoiceRecorder";
+import { PollCreator } from "./PollCreator";
+import { PollDisplay } from "./PollDisplay";
 import { format } from "date-fns";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
 interface Props {
@@ -18,27 +25,30 @@ interface Props {
   onStartCall?: (callType: "voice" | "video") => void;
 }
 
-function isImageUrl(url: string) {
-  return /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(url);
-}
-function isVideoUrl(url: string) {
-  return /\.(mp4|webm|mov|avi)(\?|$)/i.test(url);
-}
-function getFileName(url: string) {
-  return decodeURIComponent(url.split("/").pop()?.split("?")[0] || "file");
-}
-
 export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
   const { user } = useAuth();
   const { profile } = useProfile();
-  const { messages, sendMessage } = useMessages(conversation?.id || null);
+  const { messages, sendMessage, editMessage, deleteMessage, togglePin, pinnedMessages } = useMessages(conversation?.id || null);
+  const { getReactionsForMessage, toggleReaction } = useMessageReactions(conversation?.id || null);
+  const { polls, createPoll, vote, getVotesForPoll } = usePolls(conversation?.id || null);
   const { typingUsers, sendTyping, stopTyping } = useTypingIndicator(conversation?.id || null);
+  
   const [newMessage, setNewMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showPollCreator, setShowPollCreator] = useState(false);
+  const [showPinned, setShowPinned] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
+  
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -47,10 +57,17 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
-    const msg = newMessage;
+    
+    if (editingMessage) {
+      await editMessage(editingMessage.id, newMessage);
+      setEditingMessage(null);
+    } else {
+      await sendMessage(newMessage, "text", replyTo?.id);
+      setReplyTo(null);
+    }
+    
     setNewMessage("");
     stopTyping();
-    await sendMessage(msg);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,7 +86,6 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
     setUploading(true);
     setShowAttach(false);
     try {
-      const ext = file.name.split(".").pop();
       const path = `${conversation.id}/${Date.now()}_${file.name}`;
       const { error } = await supabase.storage.from("chat-files").upload(path, file);
       if (error) throw error;
@@ -79,12 +95,64 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
       if (file.type.startsWith("image/")) messageType = "image";
       else if (file.type.startsWith("video/")) messageType = "video";
 
-      await sendMessage(urlData.publicUrl, messageType);
-    } catch (err: any) {
+      await sendMessage(urlData.publicUrl, messageType, replyTo?.id);
+      setReplyTo(null);
+    } catch {
       toast.error("Failed to upload file");
-      console.error(err);
     }
     setUploading(false);
+  };
+
+  const handleVoiceSend = async (blob: Blob) => {
+    if (!conversation || !user) return;
+    setUploading(true);
+    try {
+      const path = `${conversation.id}/${Date.now()}_voice.webm`;
+      const { error } = await supabase.storage.from("chat-files").upload(path, blob);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(path);
+      await sendMessage(urlData.publicUrl, "voice");
+    } catch {
+      toast.error("Failed to send voice message");
+    }
+    setUploading(false);
+  };
+
+  const handleReply = (msg: Message) => {
+    setReplyTo(msg);
+    setEditingMessage(null);
+    inputRef.current?.focus();
+  };
+
+  const handleEdit = (msg: Message) => {
+    setEditingMessage(msg);
+    setNewMessage(msg.content);
+    setReplyTo(null);
+    inputRef.current?.focus();
+  };
+
+  const handleDelete = async (msgId: string) => {
+    await deleteMessage(msgId, true);
+  };
+
+  const handleExport = () => {
+    const text = messages
+      .filter(m => !m.is_deleted)
+      .map(m => {
+        const sender = conversation?.participants.find(p => p.user_id === m.sender_id);
+        return `[${format(new Date(m.created_at), "yyyy-MM-dd HH:mm")}] ${sender?.display_name || "Unknown"}: ${m.content}`;
+      })
+      .join("\n");
+    
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `chat-export-${format(new Date(), "yyyy-MM-dd")}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Chat exported!");
+    setShowMenu(false);
   };
 
   const isGroup = conversation?.type === "group";
@@ -100,53 +168,9 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
     return p?.display_name || "Unknown";
   };
 
-  const renderMessageContent = (msg: { content: string; message_type: string }) => {
-    const type = msg.message_type;
-    const content = msg.content;
-
-    if (type === "image" || isImageUrl(content)) {
-      return (
-        <div className="mt-1">
-          <img
-            src={content}
-            alt="Shared image"
-            className="max-w-[250px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-            onClick={() => window.open(content, "_blank")}
-            loading="lazy"
-          />
-        </div>
-      );
-    }
-
-    if (type === "video" || isVideoUrl(content)) {
-      return (
-        <div className="mt-1">
-          <video
-            src={content}
-            controls
-            className="max-w-[250px] rounded-lg"
-            preload="metadata"
-          />
-        </div>
-      );
-    }
-
-    if (type === "file") {
-      return (
-        <a
-          href={content}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 mt-1 p-2 bg-background/20 rounded-lg hover:bg-background/30 transition-colors"
-        >
-          <FileText className="h-5 w-5 flex-shrink-0" />
-          <span className="text-sm underline truncate">{getFileName(content)}</span>
-        </a>
-      );
-    }
-
-    return <p className="text-sm break-words">{content}</p>;
-  };
+  const filteredMessages = searchQuery
+    ? messages.filter(m => m.content.toLowerCase().includes(searchQuery.toLowerCase()))
+    : messages;
 
   if (!conversation) {
     return (
@@ -165,7 +189,7 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
   return (
     <div className="flex-1 flex flex-col bg-background h-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card">
+      <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card relative">
         {onBack && (
           <Button variant="ghost" size="icon" onClick={onBack} className="md:hidden">
             <ArrowLeft className="h-5 w-5" />
@@ -191,60 +215,125 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
           <p className="font-medium text-sm">{headerName}</p>
           <p className="text-xs text-muted-foreground">{headerSubtitle}</p>
         </div>
-        {!isGroup && (
-          <div className="flex gap-1">
-            <Button variant="ghost" size="icon" onClick={() => onStartCall?.("voice")}>
-              <Phone className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => onStartCall?.("video")}>
-              <Video className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon">
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" onClick={() => setShowSearch(!showSearch)}>
+            <Search className="h-4 w-4" />
+          </Button>
+          {!isGroup && (
+            <>
+              <Button variant="ghost" size="icon" onClick={() => onStartCall?.("voice")}>
+                <Phone className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => onStartCall?.("video")}>
+                <Video className="h-5 w-5" />
+              </Button>
+            </>
+          )}
+          <div className="relative">
+            <Button variant="ghost" size="icon" onClick={() => setShowMenu(!showMenu)}>
               <MoreVertical className="h-5 w-5" />
             </Button>
+            <AnimatePresence>
+              {showMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="absolute right-0 top-full mt-1 bg-card rounded-xl shadow-xl border border-border py-1 min-w-[180px] z-50"
+                  >
+                    <button onClick={() => { setShowPinned(!showPinned); setShowMenu(false); }} className="w-full px-3 py-2 text-sm hover:bg-muted flex items-center gap-2">
+                      <Pin className="h-3.5 w-3.5" /> Pinned Messages ({pinnedMessages.length})
+                    </button>
+                    <button onClick={handleExport} className="w-full px-3 py-2 text-sm hover:bg-muted flex items-center gap-2">
+                      <FileText className="h-3.5 w-3.5" /> Export Chat
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
-        )}
+        </div>
       </div>
+
+      {/* Search bar */}
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden border-b border-border">
+            <div className="p-2 flex gap-2">
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search messages..."
+                className="flex-1"
+                autoFocus
+              />
+              <Button variant="ghost" size="icon" onClick={() => { setShowSearch(false); setSearchQuery(""); }}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Pinned messages bar */}
+      <AnimatePresence>
+        {showPinned && pinnedMessages.length > 0 && (
+          <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden border-b border-border bg-muted/50">
+            <div className="p-2 space-y-1 max-h-32 overflow-y-auto">
+              <div className="flex items-center justify-between px-2">
+                <span className="text-xs font-medium text-primary flex items-center gap-1"><Pin className="h-3 w-3" /> Pinned</span>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowPinned(false)}><X className="h-3 w-3" /></Button>
+              </div>
+              {pinnedMessages.map(pm => (
+                <div key={pm.id} className="text-xs bg-card rounded px-2 py-1 truncate">{pm.content}</div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
-        {messages.map((msg, i) => {
+        {filteredMessages.map((msg, i) => {
           const isMine = msg.sender_id === user?.id;
           const senderName = isGroup ? getSenderName(msg.sender_id) : null;
+          const replyMsg = msg.reply_to_id ? messages.find(m => m.id === msg.reply_to_id) : null;
+
+          // Check if this is a poll message
+          if (msg.message_type === "poll") {
+            const poll = polls.find(p => p.id === msg.content);
+            if (poll) {
+              return (
+                <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                  <PollDisplay poll={poll} votes={getVotesForPoll(poll.id)} onVote={vote} />
+                </div>
+              );
+            }
+          }
+
           return (
-            <motion.div
+            <MessageBubble
               key={msg.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i > messages.length - 3 ? 0.05 : 0 }}
-              className={`flex ${isMine ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-                  isMine
-                    ? "bg-chat-bubble-sent text-chat-bubble-sent-fg rounded-br-md"
-                    : "bg-chat-bubble-received text-chat-bubble-received-fg rounded-bl-md"
-                }`}
-              >
-                {senderName && (
-                  <p className="text-[11px] font-semibold text-primary mb-0.5">{senderName}</p>
-                )}
-                {renderMessageContent(msg)}
-                <p className={`text-[10px] mt-1 ${isMine ? "text-chat-bubble-sent-fg/60" : "text-muted-foreground"}`}>
-                  {format(new Date(msg.created_at), "HH:mm")}
-                </p>
-              </div>
-            </motion.div>
+              message={msg}
+              isMine={isMine}
+              senderName={senderName}
+              reactions={getReactionsForMessage(msg.id)}
+              replyMessage={replyMsg}
+              onReply={handleReply}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onReact={toggleReaction}
+              onPin={togglePin}
+              isAnimated={i > filteredMessages.length - 3}
+            />
           );
         })}
 
         {/* Typing indicator */}
         {typingUsers.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex justify-start"
-          >
+          <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
             <div className="bg-chat-bubble-received text-chat-bubble-received-fg rounded-2xl rounded-bl-md px-4 py-2.5">
               <div className="flex items-center gap-1">
                 <span className="text-xs text-muted-foreground italic">
@@ -264,80 +353,111 @@ export function ChatWindow({ conversation, onBack, onStartCall }: Props) {
             </div>
           </motion.div>
         )}
-
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <form onSubmit={handleSend} className="p-4 border-t border-border bg-card">
-        {/* Attachment menu */}
-        {showAttach && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex gap-4 mb-3 p-3 bg-muted rounded-lg"
-          >
-            <button
-              type="button"
-              onClick={() => imageInputRef.current?.click()}
-              className="flex flex-col items-center gap-1 text-primary hover:opacity-80"
-            >
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Image className="h-5 w-5" />
+      {/* Input area */}
+      <div className="border-t border-border bg-card">
+        {/* Reply preview */}
+        <AnimatePresence>
+          {(replyTo || editingMessage) && (
+            <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-b border-border">
+                <div className="w-0.5 h-8 bg-primary rounded-full" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-semibold text-primary">
+                    {editingMessage ? "Editing" : `Replying to ${replyTo?.sender_id === user?.id ? "yourself" : getSenderName(replyTo!.sender_id) || "Unknown"}`}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">{editingMessage?.content || replyTo?.content}</p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setReplyTo(null); setEditingMessage(null); setNewMessage(""); }}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
               </div>
-              <span className="text-[10px]">Photo</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex flex-col items-center gap-1 text-primary hover:opacity-80"
-            >
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <FileText className="h-5 w-5" />
-              </div>
-              <span className="text-[10px]">File</span>
-            </button>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <div className="flex gap-2 items-center">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowAttach(!showAttach)}
-            disabled={uploading}
-            className="flex-shrink-0"
-          >
+        {/* Poll creator */}
+        <AnimatePresence>
+          {showPollCreator && (
+            <div className="px-4 pt-3">
+              <PollCreator
+                onCreatePoll={async (q, opts, multi) => {
+                  await createPoll(q, opts, multi);
+                  // Also send a message referencing the poll
+                }}
+                onClose={() => setShowPollCreator(false)}
+              />
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Attachment menu */}
+        <AnimatePresence>
+          {showAttach && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="flex gap-4 px-4 pt-3">
+              <div className="flex gap-3 p-3 bg-muted rounded-lg flex-wrap">
+                <button type="button" onClick={() => imageInputRef.current?.click()} className="flex flex-col items-center gap-1 text-primary hover:opacity-80">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center"><Image className="h-5 w-5" /></div>
+                  <span className="text-[10px]">Photo</span>
+                </button>
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center gap-1 text-primary hover:opacity-80">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center"><FileText className="h-5 w-5" /></div>
+                  <span className="text-[10px]">File</span>
+                </button>
+                <button type="button" onClick={() => { setShowPollCreator(true); setShowAttach(false); }} className="flex flex-col items-center gap-1 text-primary hover:opacity-80">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center"><BarChart3 className="h-5 w-5" /></div>
+                  <span className="text-[10px]">Poll</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <form onSubmit={handleSend} className="p-3 flex gap-2 items-center">
+          <Button type="button" variant="ghost" size="icon" onClick={() => { setShowAttach(!showAttach); setShowEmoji(false); }} disabled={uploading} className="flex-shrink-0">
             {showAttach ? <X className="h-5 w-5" /> : <Paperclip className="h-5 w-5" />}
           </Button>
+          
+          <div className="relative">
+            <Button type="button" variant="ghost" size="icon" onClick={() => { setShowEmoji(!showEmoji); setShowAttach(false); }} className="flex-shrink-0">
+              <Smile className="h-5 w-5" />
+            </Button>
+            <AnimatePresence>
+              {showEmoji && (
+                <div className="absolute bottom-full left-0 mb-2 z-50">
+                  <EmojiPicker
+                    onSelect={(emoji) => setNewMessage(prev => prev + emoji)}
+                    onClose={() => setShowEmoji(false)}
+                  />
+                </div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <Input
+            ref={inputRef}
             value={newMessage}
             onChange={handleInputChange}
             placeholder={uploading ? "Uploading..." : "Type a message..."}
             className="flex-1 bg-muted border-0"
             disabled={uploading}
           />
-          <Button type="submit" size="icon" disabled={!newMessage.trim() || uploading}>
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
+
+          {newMessage.trim() ? (
+            <Button type="submit" size="icon" disabled={uploading} className="flex-shrink-0 rounded-full">
+              <Send className="h-4 w-4" />
+            </Button>
+          ) : (
+            <VoiceRecorder onSend={handleVoiceSend} />
+          )}
+        </form>
 
         {/* Hidden file inputs */}
-        <input
-          ref={imageInputRef}
-          type="file"
-          accept="image/*,video/*"
-          className="hidden"
-          onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
-        />
-      </form>
+        <input ref={imageInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
+        <input ref={fileInputRef} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
+      </div>
     </div>
   );
 }
