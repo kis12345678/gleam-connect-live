@@ -32,7 +32,7 @@ export function usePolls(conversationId: string | null) {
       .select("*")
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false });
-    setPolls((data as Poll[]) || []);
+    setPolls((data as unknown as Poll[]) || []);
 
     if (data?.length) {
       const pollIds = data.map((p: any) => p.id);
