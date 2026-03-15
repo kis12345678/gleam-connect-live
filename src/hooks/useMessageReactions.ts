@@ -37,7 +37,7 @@ export function useMessageReactions(conversationId: string | null) {
       .select("*")
       .in("message_id", msgIds);
     
-    setReactions((data as Reaction[]) || []);
+    setReactions((data as unknown as Reaction[]) || []);
   }, [conversationId]);
 
   useEffect(() => { fetchReactions(); }, [fetchReactions]);
