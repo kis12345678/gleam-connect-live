@@ -5,23 +5,35 @@ import { useWebRTC } from "@/hooks/useWebRTC";
 import { useIncomingCalls } from "@/hooks/useIncomingCalls";
 import { useCallHistory } from "@/hooks/useCallHistory";
 import { useRingtone } from "@/hooks/useRingtone";
+import { useChannels } from "@/hooks/useChannels";
+import { useDarkMode } from "@/hooks/useDarkMode";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { IncomingCallDialog } from "@/components/call/IncomingCallDialog";
 import { ActiveCallOverlay } from "@/components/call/ActiveCallOverlay";
 import { StatusList } from "@/components/status/StatusList";
+import { ChannelList } from "@/components/channels/ChannelList";
+import { ChannelChat } from "@/components/channels/ChannelChat";
+import { AIChatAssistant } from "@/components/chat/AIChatAssistant";
 import SettingsPage from "@/pages/Settings";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Bot } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Index() {
   const { user, loading: authLoading } = useAuth();
   const { conversations, loading, startConversation, createGroupConversation, refresh } = useConversations();
+  const { channels, createChannel, joinChannel, leaveChannel } = useChannels();
+  const { isDark, toggle: toggleDark } = useDarkMode();
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
+  const [showChannels, setShowChannels] = useState(false);
+  const [showAI, setShowAI] = useState(false);
 
   const {
     callState, callInfo, localStream, remoteStream,
@@ -58,9 +70,20 @@ export default function Index() {
   if (!user) return <Navigate to="/auth" replace />;
 
   const activeConv = conversations.find((c) => c.id === activeConvId) || null;
+  const activeChannel = channels.find((c) => c.id === activeChannelId) || null;
 
   const handleSelect = (id: string) => {
     setActiveConvId(id);
+    setActiveChannelId(null);
+    setShowChat(true);
+    setShowSettings(false);
+    setShowStatus(false);
+    setShowChannels(false);
+  };
+
+  const handleSelectChannel = (id: string) => {
+    setActiveChannelId(id);
+    setActiveConvId(null);
     setShowChat(true);
     setShowSettings(false);
     setShowStatus(false);
@@ -114,7 +137,12 @@ export default function Index() {
     await rejectCall(call);
   };
 
-  const mainView = showSettings ? "settings" : showStatus ? "status" : "chat";
+  const mainView = showSettings ? "settings" : showStatus ? "status" : showChannels ? "channels" : "chat";
+
+  // Get chat messages for AI summarization
+  const aiChatMessages = activeConv
+    ? undefined // will be populated by ChatWindow context
+    : undefined;
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -130,32 +158,74 @@ export default function Index() {
 
       {/* Sidebar */}
       <div className={`w-full md:w-80 lg:w-96 flex-shrink-0 ${showChat || showSettings || showStatus ? "hidden md:flex" : "flex"} flex-col`}>
-        <ConversationList
-          conversations={conversations}
-          activeId={activeConvId}
-          onSelect={handleSelect}
-          onStartConversation={handleStartConversation}
-          onCreateGroup={handleCreateGroup}
-          onOpenSettings={() => { setShowSettings(true); setShowChat(false); setShowStatus(false); }}
-          onOpenStatus={() => { setShowStatus(true); setShowChat(false); setShowSettings(false); }}
-        />
+        {showChannels ? (
+          <ChannelList
+            channels={channels}
+            activeId={activeChannelId}
+            onSelect={handleSelectChannel}
+            onCreate={async (name, desc, type) => { await createChannel(name, desc, type); }}
+            onJoin={joinChannel}
+            onLeave={leaveChannel}
+            onBack={() => setShowChannels(false)}
+          />
+        ) : (
+          <ConversationList
+            conversations={conversations}
+            activeId={activeConvId}
+            onSelect={handleSelect}
+            onStartConversation={handleStartConversation}
+            onCreateGroup={handleCreateGroup}
+            onOpenSettings={() => { setShowSettings(true); setShowChat(false); setShowStatus(false); setShowChannels(false); }}
+            onOpenStatus={() => { setShowStatus(true); setShowChat(false); setShowSettings(false); setShowChannels(false); }}
+            onOpenChannels={() => { setShowChannels(true); setShowChat(false); setShowSettings(false); setShowStatus(false); }}
+          />
+        )}
       </div>
 
       {/* Main area */}
-      <div className={`flex-1 ${!showChat && !showSettings && !showStatus ? "hidden md:flex" : "flex"} flex-col`}>
+      <div className={`flex-1 ${!showChat && !showSettings && !showStatus ? "hidden md:flex" : "flex"} flex-col relative`}>
         {mainView === "settings" ? (
-          <SettingsPage onBack={() => setShowSettings(false)} />
+          <SettingsPage onBack={() => setShowSettings(false)} isDark={isDark} onToggleDark={toggleDark} />
         ) : mainView === "status" ? (
           <div className="flex-1 flex flex-col">
             <div className="md:hidden p-2 border-b border-border">
-              <Button variant="ghost" size="sm" onClick={() => setShowStatus(false)}>
-                ← Back
-              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setShowStatus(false)}>← Back</Button>
             </div>
             <StatusList />
           </div>
+        ) : mainView === "channels" ? (
+          activeChannel ? (
+            <ChannelChat channel={activeChannel} onBack={() => setActiveChannelId(null)} />
+          ) : (
+            <div className="flex-1 flex items-center justify-center bg-background">
+              <p className="text-muted-foreground text-sm">Select a channel</p>
+            </div>
+          )
+        ) : activeChannelId && activeChannel ? (
+          <ChannelChat channel={activeChannel} onBack={() => { setActiveChannelId(null); setShowChat(false); }} />
         ) : (
           <ChatWindow conversation={activeConv} onBack={() => setShowChat(false)} onStartCall={handleStartCall} />
+        )}
+
+        {/* AI Assistant FAB */}
+        <AnimatePresence>
+          {showAI && <AIChatAssistant onClose={() => setShowAI(false)} />}
+        </AnimatePresence>
+        
+        {!showAI && !showSettings && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute bottom-4 right-4 z-40"
+          >
+            <Button
+              onClick={() => setShowAI(true)}
+              className="rounded-full h-12 w-12 shadow-lg bg-primary hover:bg-primary/90"
+              size="icon"
+            >
+              <Bot className="h-5 w-5" />
+            </Button>
+          </motion.div>
         )}
       </div>
     </div>
