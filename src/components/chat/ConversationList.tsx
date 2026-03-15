@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Search, Plus, Settings, Phone, MessageSquare, Camera, Users, CircleDot } from "lucide-react";
+import { Search, Plus, Settings, Phone, MessageSquare, Camera, Users, CircleDot, Hash } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -19,9 +19,10 @@ interface Props {
   onCreateGroup: (userIds: string[], name: string) => void;
   onOpenSettings: () => void;
   onOpenStatus?: () => void;
+  onOpenChannels?: () => void;
 }
 
-export function ConversationList({ conversations, activeId, onSelect, onStartConversation, onCreateGroup, onOpenSettings, onOpenStatus }: Props) {
+export function ConversationList({ conversations, activeId, onSelect, onStartConversation, onCreateGroup, onOpenSettings, onOpenStatus, onOpenChannels }: Props) {
   const { user } = useAuth();
   const { profile } = useProfile();
   const { uploadAvatar, uploading } = useAvatarUpload();
@@ -33,17 +34,11 @@ export function ConversationList({ conversations, activeId, onSelect, onStartCon
 
   const filtered = conversations.filter(c => {
     if (!filter) return true;
-    if (c.type === "group") {
-      return c.name?.toLowerCase().includes(filter.toLowerCase());
-    }
+    if (c.type === "group") return c.name?.toLowerCase().includes(filter.toLowerCase());
     const other = c.participants.find(p => p.user_id !== user?.id);
     return other?.display_name.toLowerCase().includes(filter.toLowerCase()) ||
            other?.username.toLowerCase().includes(filter.toLowerCase());
   });
-
-  const handleAvatarClick = () => {
-    fileInputRef.current?.click();
-  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,10 +49,9 @@ export function ConversationList({ conversations, activeId, onSelect, onStartCon
 
   const getConversationDisplay = (conv: Conversation) => {
     if (conv.type === "group") {
-      const memberCount = conv.participants.length;
       return {
         name: conv.name || "Group Chat",
-        subtitle: `${memberCount} members`,
+        subtitle: `${conv.participants.length} members`,
         initials: conv.name?.charAt(0).toUpperCase() || "G",
         isGroup: true,
         avatarUrl: null as string | null,
@@ -92,19 +86,14 @@ export function ConversationList({ conversations, activeId, onSelect, onStartCon
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search..."
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="pl-9 bg-muted border-0"
-          />
+          <Input placeholder="Search..." value={filter} onChange={(e) => setFilter(e.target.value)} className="pl-9 bg-muted border-0" />
         </div>
       </div>
 
-      {/* Profile with avatar upload */}
+      {/* Profile */}
       {profile && (
         <div className="px-4 py-3 border-b border-border flex items-center gap-3">
-          <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+          <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
             {profile.avatar_url ? (
               <img src={profile.avatar_url} alt={profile.display_name} className="h-10 w-10 rounded-full object-cover" />
             ) : (
@@ -120,41 +109,28 @@ export function ConversationList({ conversations, activeId, onSelect, onStartCon
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm truncate">{profile.display_name}</p>
-            <p className="text-xs text-muted-foreground truncate">
-              {profile.status_text || `@${profile.username}`}
-            </p>
+            <p className="text-xs text-muted-foreground truncate">{profile.status_text || `@${profile.username}`}</p>
           </div>
         </div>
       )}
 
       {/* Tabs */}
       <div className="flex border-b border-border">
-        <button
-          onClick={() => setTab("chats")}
-          className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
-            tab === "chats" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <MessageSquare className="h-4 w-4" />
-          Chats
+        <button onClick={() => setTab("chats")} className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${tab === "chats" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}>
+          <MessageSquare className="h-4 w-4" /> Chats
         </button>
         {onOpenStatus && (
-          <button
-            onClick={onOpenStatus}
-            className="flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors text-muted-foreground hover:text-foreground"
-          >
-            <CircleDot className="h-4 w-4" />
-            Status
+          <button onClick={onOpenStatus} className="flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors text-muted-foreground hover:text-foreground">
+            <CircleDot className="h-4 w-4" /> Status
           </button>
         )}
-        <button
-          onClick={() => setTab("calls")}
-          className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
-            tab === "calls" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Phone className="h-4 w-4" />
-          Calls
+        {onOpenChannels && (
+          <button onClick={onOpenChannels} className="flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors text-muted-foreground hover:text-foreground">
+            <Hash className="h-4 w-4" /> Channels
+          </button>
+        )}
+        <button onClick={() => setTab("calls")} className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${tab === "calls" ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}>
+          <Phone className="h-4 w-4" /> Calls
         </button>
       </div>
 
@@ -166,9 +142,7 @@ export function ConversationList({ conversations, activeId, onSelect, onStartCon
           {filtered.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <p className="text-sm">No conversations yet</p>
-              <Button variant="link" className="text-primary mt-2" onClick={() => setSearchOpen(true)}>
-                Start a new chat
-              </Button>
+              <Button variant="link" className="text-primary mt-2" onClick={() => setSearchOpen(true)}>Start a new chat</Button>
             </div>
           ) : (
             filtered.map(conv => {
@@ -177,9 +151,7 @@ export function ConversationList({ conversations, activeId, onSelect, onStartCon
                 <button
                   key={conv.id}
                   onClick={() => onSelect(conv.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left ${
-                    activeId === conv.id ? "bg-muted" : ""
-                  }`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left ${activeId === conv.id ? "bg-muted" : ""}`}
                 >
                   <div className="relative flex-shrink-0">
                     {display.isGroup ? (
@@ -193,9 +165,7 @@ export function ConversationList({ conversations, activeId, onSelect, onStartCon
                         {display.initials}
                       </div>
                     )}
-                    {display.isOnline && (
-                      <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-online border-2 border-card" />
-                    )}
+                    {display.isOnline && <div className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-online border-2 border-card" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline">
@@ -221,14 +191,8 @@ export function ConversationList({ conversations, activeId, onSelect, onStartCon
       {searchOpen && (
         <UserSearch
           onClose={() => setSearchOpen(false)}
-          onSelectUser={(userId) => {
-            onStartConversation(userId);
-            setSearchOpen(false);
-          }}
-          onCreateGroup={(userIds, name) => {
-            onCreateGroup(userIds, name);
-            setSearchOpen(false);
-          }}
+          onSelectUser={(userId) => { onStartConversation(userId); setSearchOpen(false); }}
+          onCreateGroup={(userIds, name) => { onCreateGroup(userIds, name); setSearchOpen(false); }}
         />
       )}
     </div>
